@@ -1,0 +1,470 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "location": {
+        "type": "string",
+        "defaultValue": "northcentralus",
+        "metadata": {
+          "description": "location - same as above"
+        }
+      },
+      "adminUsername": {
+        "type": "string",
+        "defaultValue": "ftnt-testdrive",
+        "metadata": {
+          "description": "Username for the FortiWeb virtual appliance."
+        }
+      },
+      "adminPassword": {
+        "type": "securestring",
+        "defaultValue": "Fortinet@123",
+        "metadata": {
+          "description": "Password for the FortiWeb virtual appliance."
+        }
+      },
+      "FortiWebName": {
+        "type": "string",
+        "defaultValue": "FortiWeb",
+        "metadata": {
+          "description": "Name for FortiWeb virtual appliance."
+        }
+      },
+      "FortiWebImageSKU": {
+        "type": "string",
+        "defaultValue": "fortinet_fw-vm_payg",
+          "allowedValues": [
+          "fortinet_fw-vm_payg"
+        ],
+        "metadata": {
+          "description": "Uses PAYG - on demand licensing"
+        }
+      },
+      "FortiWebImageVersion": {
+        "type": "string",
+        "defaultValue": "latest",
+        "allowedValues": [
+          "latest"
+        ],
+        "metadata": {
+          "description": "Select image version."
+        }
+      },
+      "instanceType": {
+        "type": "string",
+        "defaultValue": "Standard_F1",
+        "metadata": {
+          "description": "Virtual Machine size selection"
+        }
+      },
+      "publicIPNewOrExistingOrNone": {
+        "type": "string",
+        "defaultValue": "new",
+        "allowedValues": [
+          "new",
+          "existing",
+          "none"
+        ],
+        "metadata": {
+          "description": "Identify whether to use a public IP and if so whether it is new or previously created"
+        }
+      },
+      "publicIPAddressName": {
+        "type": "string",
+        "defaultValue": "FortiWebPublicIP",
+        "metadata": {
+          "description": "Name of Public IP address resource."
+        }
+      },
+      "publicIPAddressType": {
+        "type": "string",
+        "defaultValue": "Static",
+        "allowedValues": [
+          "Static"
+        ],
+        "metadata": {
+          "description": "Type of public IP address"
+        }
+      },
+      "vnetNewOrExisting": {
+        "type": "string",
+        "defaultValue": "new",
+        "allowedValues": [
+          "new"
+        ],
+        "metadata": {
+          "description": "Identify whether to use a new or existing vnet"
+        }
+      },
+      "vnetName": {
+        "type": "string",
+        "defaultValue": "FortiWebProtectedVNET",
+        "metadata": {
+          "description": "Name of the Azure virtual network."
+        }
+      },
+      "vnetAddressPrefix": {
+        "type": "string",
+        "defaultValue": "10.0.0.0/16",
+        "metadata": {
+          "description": "Virtual network address space in CIDR notation, example: 10.2.0.0/16"
+        }
+      },
+      "Subnet1Name": {
+        "type": "string",
+        "defaultValue": "UntrustedSubnet",
+        "metadata": {
+          "description": "Subnet 1 Name"
+        }
+      },
+      "Subnet1Prefix": {
+        "type": "string",
+        "defaultValue": "10.0.1.0/24",
+        "metadata": {
+          "description": "Subnet 1 Prefix in CIDR notation (if using public IP, this will be the 'WAN' or external port), example: 10.2.1.0/24"
+        }
+      },
+      "Subnet2Name": {
+        "type": "string",
+        "defaultValue": "TrustedSubnet",
+        "metadata": {
+          "description": "Subnet 2 Name"
+        }
+      },
+      "Subnet2Prefix": {
+        "type": "string",
+        "defaultValue": "10.0.2.0/24",
+        "metadata": {
+          "description": "Subnet 2 Prefix in CIDR notation (if using public IP, this will be the 'WAN' or external port), example: 10.2.2.0/24"
+        }
+      },
+      "Subnet3Name": {
+        "type": "string",
+        "defaultValue": "DMZSubnet",
+        "metadata": {
+          "description": "Subnet 3 Name"
+        }
+      },
+      "Subnet3Prefix": {
+        "type": "string",
+        "defaultValue": "10.0.3.0/24",
+        "metadata": {
+          "description": "Subnet 2 Prefix in CIDR notation (if using public IP, this will be the 'WAN' or external port), example: 10.2.2.0/24"
+        }
+      },
+      "FortinetTags": {
+        "type": "object",
+        "defaultValue": {
+          "provider": "6EB3B02F-50E5-4A3E-8CB8-2E129258317D"
+        }
+      }
+    },
+    "variables": {
+      "subnet1Ref": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('Subnet1Name'))]",
+      "subnet2Ref": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('Subnet2Name'))]",
+      "subnet3Ref": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('Subnet3Name'))]",
+      "publicIPID": "[resourceId('Microsoft.Network/publicIPAddresses', parameters('publicIPAddressName'))]",
+      "FGNIC1IP": "10.0.1.4",
+      "FGNIC2IP": "10.0.2.4",
+      "network_NIC_fg11_Name": "[concat(parameters('FortiWebName'),'-Nic0-',uniquestring(deployment().name))]",
+      "network_NIC_fg11_Id": "[resourceId('Microsoft.Network/networkInterfaces',variables('network_NIC_fg11_Name'))]",
+      "network_NIC_fg12_Name": "[concat(parameters('FortiWebName'),'-Nic1-',uniquestring(deployment().name))]",
+      "network_NIC_fg12_Id": "[resourceId('Microsoft.Network/networkInterfaces',variables('network_NIC_fg12_Name'))]",
+  
+      "compute_AvailabilitySet_FG_Name": "[concat(parameters('FortiWebName'),'-AvailabilitySet-',uniquestring(deployment().name))]",
+      "compute_AvailabilitySet_FG_Id": "[resourceId('Microsoft.Compute/availabilitySets', variables('compute_AvailabilitySet_FG_Name'))]",
+  
+      "uniqueSAName": "[concat('testdrive', uniqueString(resourceGroup().id))]"
+    },
+    "resources": [
+      {
+        "type": "Microsoft.Storage/storageAccounts",
+        "apiVersion": "2019-04-01",
+        "name": "[variables('uniqueSAName')]",
+        "location": "[parameters('location')]",
+        "sku": {
+          "name": "Standard_LRS"
+        },
+        "kind": "StorageV2",
+        "properties": {}
+      },
+      {
+        "type": "Microsoft.Compute/availabilitySets",
+        "name": "[variables('compute_AvailabilitySet_FG_Name')]",
+        "apiVersion": "2017-03-30",
+        "tags": {
+          "provider": "[toUpper(parameters('FortinetTags').provider)]"
+        },
+        "location": "[parameters('location')]",
+        "properties": {
+          "platformFaultDomainCount": 2,
+          "platformUpdateDomainCount": 2
+        },
+        "sku": {
+          "name": "Aligned"
+        }
+      },
+      {
+        "condition": "[equals(parameters('vnetNewOrExisting'), 'new')]",
+        "type": "Microsoft.Network/virtualNetworks",
+        "apiVersion": "2017-09-01",
+        "name": "[parameters('vnetName')]",
+        "location": "[parameters('location')]",
+        "properties": {
+          "addressSpace": {
+            "addressPrefixes": [
+              "[parameters('vnetAddressPrefix')]"
+            ]
+          },
+          "subnets": [
+            {
+              "name": "[parameters('Subnet1Name')]",
+              "properties": {
+                "addressPrefix": "[parameters('Subnet1Prefix')]"
+              }
+            },
+            {
+              "name": "[parameters('Subnet2Name')]",
+              "properties": {
+                "addressPrefix": "[parameters('Subnet2Prefix')]"
+              }
+            },
+            {
+              "name": "[parameters('Subnet3Name')]",
+              "properties": {
+                "addressPrefix": "[parameters('Subnet3Prefix')]"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "condition": "[equals(parameters('publicIPNewOrExistingOrNone'), 'new')]",
+        "type": "Microsoft.Network/publicIPAddresses",
+        "apiVersion": "2017-09-01",
+        "tags": {
+          "provider": "[toUpper(parameters('FortinetTags').provider)]"
+        },
+        "name": "[parameters('publicIPAddressName')]",
+        "location": "[parameters('location')]",
+        "properties": {
+          "publicIPAllocationMethod": "[parameters('publicIPAddressType')]"
+        }
+      },
+      {
+        "apiVersion": "2017-09-01",
+        "tags": {
+          "provider": "[toUpper(parameters('FortinetTags').provider)]"
+        },
+        "type": "Microsoft.Network/networkInterfaces",
+        "name": "[variables('network_NIC_fg11_Name')]",
+        "location": "[parameters('location')]",
+        "dependsOn": [
+          "[parameters('vnetName')]"
+        ],
+        "properties": {
+          "ipConfigurations": [
+            {
+              "name": "ipconfig1",
+              "properties": {
+                "privateIPAllocationMethod": "static",
+                "privateIPAddress": "[variables('FGNIC1IP')]",
+                "subnet": {
+                  "id": "[variables('subnet1Ref')]"
+                },
+                "publicIPAddress": {
+                  "id": "[variables('publicIPID')]"
+                }
+              }
+            }
+          ],
+          "enableIPForwarding": true
+        }
+      },
+      {
+        "apiVersion": "2017-09-01",
+        "tags": {
+          "provider": "[toUpper(parameters('FortinetTags').provider)]"
+        },
+        "type": "Microsoft.Network/networkInterfaces",
+        "name": "[variables('network_NIC_fg12_Name')]",
+        "location": "[parameters('location')]",
+        "dependsOn": [
+          "[parameters('vnetName')]"
+        ],
+        "properties": {
+          "ipConfigurations": [
+            {
+              "name": "ipconfig1",
+              "properties": {
+                "privateIPAllocationMethod": "static",
+                "privateIPAddress": "[variables('FGNIC2IP')]",
+                "subnet": {
+                  "id": "[variables('subnet2Ref')]"
+                }
+              }
+            }
+          ],
+          "enableIPForwarding": true
+        }
+      },
+      {
+        "type": "Microsoft.Compute/virtualMachines",
+        "name": "[parameters('FortiWebName')]",
+        "apiVersion": "2017-03-30",
+        "tags": {
+          "provider": "[toUpper(parameters('FortinetTags').provider)]"
+        },
+        "location": "[parameters('location')]",
+        "plan": {
+          "name": "[parameters('FortiWebImageSKU')]",
+          "publisher": "fortinet",
+          "product": "fortinet_fortiweb-vm_v5"
+        },
+        "dependsOn": [
+          "[variables('network_NIC_fg11_Name')]",
+          "[variables('network_NIC_fg12_Name')]"
+        ],
+        "properties": {
+          "hardwareProfile": {
+            "vmSize": "[parameters('instanceType')]"
+          },
+          "availabilitySet": {
+            "id": "[variables('compute_AvailabilitySet_FG_Id')]"
+          },
+          "osProfile": {
+            "computerName": "[parameters('FortiWebName')]",
+            "adminUsername": "[parameters('adminUsername')]",
+            "adminPassword": "[parameters('adminPassword')]"
+            //"customData": "[base64(variables('customData'))]"
+          },
+          "storageProfile": {
+            "imageReference": {
+              "publisher": "fortinet",
+              "offer": "fortinet_fortiweb-vm_v5",
+              "sku": "[parameters('FortiWebImageSKU')]",
+              "version": "[parameters('FortiWebImageVersion')]"
+            },
+            "osDisk": {
+              "createOption": "FromImage"
+            },
+            "dataDisks": [
+              {
+                "diskSizeGB": 30,
+                "lun": 0,
+                "createOption": "Empty"
+              }
+            ]
+          },
+          "networkProfile": {
+            "networkInterfaces": [
+              {
+                "properties": {
+                  "primary": true
+                },
+                "id": "[variables('network_NIC_fg11_Id')]"
+              },
+              {
+                "properties": {
+                  "primary": false
+                },
+                "id": "[variables('network_NIC_fg12_Id')]"
+              }
+            ]
+          },
+          "diagnosticsProfile": {
+            "bootDiagnostics": {
+              "enabled": true,
+              "storageUri": "[concat('https://', variables('uniqueSAName'), '.blob.core.windows.net')]"
+            }
+          }
+        }
+      },
+      {
+        "apiVersion": "2017-09-01",
+        "tags": {
+          "provider": "[toUpper(parameters('FortinetTags').provider)]"
+        },
+        "type": "Microsoft.Network/networkInterfaces",
+        "name": "ApacheNIC",
+        "location": "[parameters('location')]",
+        "dependsOn": [
+          "[parameters('vnetName')]"
+        ],
+        "properties": {
+          "ipConfigurations": [
+            {
+              "name": "ipconfig1",
+              "properties": {
+                "privateIPAllocationMethod": "Static",
+                "privateIPAddress": "10.0.3.4",
+                "subnet": {
+                  "id": "[variables('subnet3Ref')]"
+                }
+              }
+            }
+          ],
+          "enableIPForwarding": false
+        }
+      },
+      {
+        "name": "ApacheWebServer",
+        "type": "Microsoft.Compute/virtualMachines",
+        "apiVersion": "2018-06-01",
+        "location": "[parameters('location')]",
+        "plan": {
+          "name": "apache-ubuntu20-04",
+          "publisher": "cloud-infrastructure-services",
+          "product": "apache_ubuntu20-04"
+        },
+        "dependsOn": [
+          "ApacheNIC"
+        ],
+        "properties": {
+          "hardwareProfile": {
+            "vmSize": "Standard_B1s"
+          },
+          "storageProfile": {
+            "osDisk": {
+              "createOption": "fromImage",
+              "managedDisk": {
+                "storageAccountType": "StandardSSD_LRS"
+              }
+            },
+            "imageReference": {
+              "publisher": "cloud-infrastructure-services",
+              "offer": "apache_ubuntu20-04",
+              "sku": "apache-ubuntu20-04",
+              "version": "latest"
+            }
+          },
+          "networkProfile": {
+            "networkInterfaces": [
+              {
+                "id": "[resourceId('Microsoft.Network/networkInterfaces', 'ApacheNIC')]"
+              }
+            ]
+          },
+          "osProfile": {
+            "computerName": "ApacheServer",
+            "adminUsername": "[parameters('adminUsername')]",
+            "adminPassword": "[parameters('adminPassword')]"
+          },
+          "diagnosticsProfile": {
+            "bootDiagnostics": {
+              "enabled": true,
+              "storageUri": "[concat('https://', variables('uniqueSAName'), '.blob.core.windows.net')]"
+            }
+          }
+        },
+        "tags": {}
+      }
+    ],
+    "outputs": {
+      "publicIPAddress": {
+        "type": "string",
+        "value": "[reference(resourceId('Microsoft.Network/publicIPAddresses', parameters('publicIPAddressName'))).ipAddress]"
+      }
+    }
+  }
+  

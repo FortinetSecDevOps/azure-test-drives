@@ -4,9 +4,9 @@
   "parameters": {
     "location": {
       "type": "string",
-      "defaultValue": "westus2",
+      "defaultValue": "[resourceGroup().location]",
       "metadata": {
-        "description": "location - same as above"
+        "description": "Location for all resources."
       }
     },
     "adminUsername": {
@@ -52,7 +52,7 @@
     },
     "instanceType": {
       "type": "string",
-      "defaultValue": "Standard_F1",
+      "defaultValue": "Standard_F1s",
       "metadata": {
         "description": "Virtual Machine size selection"
       }
@@ -503,7 +503,7 @@
       ],
       "properties": {
         "hardwareProfile": {
-          "vmSize": "Standard_B1s"
+          "vmSize": "Standard_F1s"
         },
         "storageProfile": {
           "osDisk": {

@@ -32,9 +32,9 @@
     },
     "FortiWebImageSKU": {
       "type": "string",
-      "defaultValue": "fortinet_fw-vm_payg",
+      "defaultValue": "fortinet_fw-vm_payg_v2",
       "allowedValues": [
-        "fortinet_fw-vm_payg"
+        "fortinet_fw-vm_payg_v2"
       ],
       "metadata": {
         "description": "Uses PAYG - on demand licensing"
